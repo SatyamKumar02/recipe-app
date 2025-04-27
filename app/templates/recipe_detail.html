@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}{{ recipe.title }} - RecipeShare{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+
+  <!-- Title and Timestamp -->
+  <h2 class="mb-1">{{ recipe.title }}</h2>
+  <p class="text-muted">Posted on {{ recipe.timestamp.strftime('%Y-%m-%d') }}</p>
+
+  <!-- Image -->
+  {% if recipe.image_url %}
+    <img src="{{ recipe.image_url }}" class="recipe-detail-img img-fluid rounded shadow mb-4" alt="{{ recipe.title }}">
+  {% endif %}
+
+  <!-- Description -->
+  <div class="mb-4">
+    <h5>Description</h5>
+    <p>{{ recipe.description }}</p>
+  </div>
+
+  <!-- Ingredients -->
+  <div class="mb-4">
+    <h5>Ingredients</h5>
+    <ul class="list-group">
+      {% for item in recipe.ingredients %}
+        <li class="list-group-item">{{ item }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <!-- Steps -->
+  <div class="mb-4">
+    <h5>Steps</h5>
+    <ol class="list-group list-group-numbered">
+      {% for step in recipe.steps %}
+        <li class="list-group-item">{{ step }}</li>
+      {% endfor %}
+    </ol>
+  </div>
+
+  <!-- Tags -->
+  {% if recipe.tags %}
+    <div class="mb-4">
+      <strong>Tags:</strong>
+      {% for tag in recipe.tags %}
+        <span class="badge bg-secondary me-1">{{ tag }}</span>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <!-- Average Rating -->
+  <div class="mb-4">
+    <h5>Average Rating</h5>
+    {% if avg_rating %}
+      <p class="fs-5">⭐ {{ avg_rating }} / 5</p>
+    {% else %}
+      <p class="text-muted">No ratings yet.</p>
+    {% endif %}
+  </div>
+
+  <!-- Review Form -->
+  <div class="mb-5">
+    <h5>Leave a Review</h5>
+    {% if current_user.is_authenticated %}
+      <form method="POST" novalidate>
+        {{ form.hidden_tag() }}
+        <div class="mb-3">
+          {{ form.rating.label(class="form-label") }}
+          {{ form.rating(class="form-control", type="number", min="1", max="5") }}
+        </div>
+        <div class="mb-3">
+          {{ form.comment.label(class="form-label") }}
+          {{ form.comment(class="form-control", rows="3") }}
+        </div>
+        {{ form.submit(class="btn btn-success") }}
+      </form>
+    {% else %}
+      <p><a href="{{ url_for('auth.login') }}">Log in</a> to leave a review.</p>
+    {% endif %}
+  </div>
+
+  <!-- Reviews -->
+  <div class="mb-5">
+    <h5>Reviews</h5>
+    {% if reviews %}
+    {% for review in reviews %}
+    <div class="card mb-3">
+      <div class="card-body position-relative">
+        <h6 class="position-absolute top-0 end-0 me-2 mt-2 text-muted">
+          {{ review.username }}
+        </h6>
+        <p class="mb-1"><strong>Rating:</strong> ⭐ {{ review.rating }} </p>
+        <p>{{ review.comment }}</p>
+  
+        {% if current_user.is_authenticated and review.user_id == current_user.id %}
+          <form method="POST" action="{{ url_for('views.delete_review', review_id=review.id, recipe_id=recipe.id) }}">
+            {{ delete_form.hidden_tag() }}
+            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+  {% endfor %}
+  
+    {% else %}
+      <p class="text-muted">No reviews yet.</p>
+    {% endif %}
+  </div>
+
+  <!-- Action Buttons -->
+  <div class="d-flex flex-wrap gap-2 align-items-center mb-5">
+    {% if current_user.is_authenticated %}
+      {% if current_user.id == recipe.author_id %}
+        <a href="{{ url_for('views.edit_recipe', recipe_id=recipe.id) }}" class="btn btn-warning">Edit</a>
+        <form action="{{ url_for('views.delete_recipe', recipe_id=recipe.id) }}" method="POST" class="d-inline">
+          {{ delete_form.hidden_tag() }}  <!-- Add this to include CSRF token -->
+          <button type="submit" class="btn btn-danger" onclick="return confirm('Delete this recipe?')">Delete</button>
+        </form>
+      {% endif %}
+
+      {% if recipe.id in current_user.saved_recipes %}
+        <a href="{{ url_for('views.toggle_save', recipe_id=recipe.id) }}" class="btn btn-outline-danger">❤️ Unsave</a>
+      {% else %}
+        <a href="{{ url_for('views.toggle_save', recipe_id=recipe.id) }}" class="btn btn-outline-primary">💾 Save Recipe</a>
+      {% endif %}
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

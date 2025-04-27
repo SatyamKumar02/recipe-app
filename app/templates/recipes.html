@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}All Recipes - RecipeShare{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">All Recipes</h2>
+    {% if current_user.is_authenticated %}
+      <a href="{{ url_for('views.add_recipe') }}" class="btn btn-success">+ Add Recipe</a>
+    {% endif %}
+  </div>
+
+  {% if recipes %}
+    <div class="row">
+      {% for recipe in recipes %}
+        <div class="col-md-6 col-lg-4 mb-4">
+          <div class="card h-100 shadow-sm d-flex flex-column">
+            {% if recipe.image_url %}
+              <img src="{{ recipe.image_url }}" class="card-img-top recipe-img" alt="Image of {{ recipe.title }}">
+            {% else %}
+              <img src="{{ url_for('static', filename='default-recipe.jpg') }}" class="card-img-top recipe-img" alt="Default recipe image">
+            {% endif %}
+
+            <div class="card-body d-flex flex-column">
+              <h5 class="card-title">{{ recipe.title[:50] }}</h5>
+              <p class="card-text text-muted">{{ recipe.description[:100] }}...</p>
+
+              <div class="mt-auto d-flex flex-wrap gap-2 justify-content-between align-items-center">
+                <a href="{{ url_for('views.recipe_detail', recipe_id=recipe.id) }}" class="btn btn-outline-primary btn-sm">View</a>
+
+                {% if current_user.is_authenticated %}
+                  {% if recipe.author_id == current_user.id %}
+                    <a href="{{ url_for('views.edit_recipe', recipe_id=recipe.id) }}" class="btn btn-warning btn-sm">Edit</a>
+                    <form action="{{ url_for('views.delete_recipe', recipe_id=recipe.id) }}" method="POST" class="d-inline">
+                      {{ delete_form.hidden_tag() }}  <!-- Add this to include CSRF token -->
+                      <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure?')">Delete</button>
+                    </form>
+                  {% endif %}
+
+                  {% set saved = recipe.id in current_user.saved_recipes %}
+                  <a href="{{ url_for('views.toggle_save', recipe_id=recipe.id) }}"
+                     class="btn btn-sm {{ 'btn-outline-secondary' if saved else 'btn-success' }}">
+                    {{ 'Unsave' if saved else 'Save' }}
+                  </a>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="text-muted">No recipes found.</p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,12 @@
+.recipe-img {
+    height: 200px;
+    object-fit: cover;
+    width: 100%;
+  }
+  
+  .recipe-detail-img {
+    width: 100%;
+    max-height: 500px;
+    object-fit: cover;
+  }
+  

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Home - RecipeShare{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<div class="p-5 mb-4 bg-light rounded-3">
+  <div class="container py-5">
+    <h1 class="display-5 fw-bold">Welcome to RecipeShare!</h1>
+    <p class="col-md-8 fs-4">Discover, share, and save your favorite recipes from around the world. Join our community of food lovers today.</p>
+    <a class="btn btn-primary btn-lg" href="{{ url_for('views.recipes') }}">Browse Recipes</a>
+  </div>
+</div>
+
+<!-- Featured Recipes -->
+<h2 class="mb-4">Featured Recipes</h2>
+<div class="row">
+  {% for recipe in featured_recipes %}
+    <div class="col-md-4 mb-4">
+      <div class="card h-100 shadow-sm">
+        {% if recipe.image_url %}
+          <img src="{{ recipe.image_url }}" class="card-img-top" alt="{{ recipe.title }}">
+        {% endif %}
+        <div class="card-body">
+          <h5 class="card-title">{{ recipe.title }}</h5>
+          <p class="card-text">{{ recipe.description[:100] }}...</p>
+          <a href="{{ url_for('views.recipe_detail', recipe_id=recipe._id) }}" class="btn btn-outline-primary btn-sm">View Recipe</a>
+        </div>
+      </div>
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}

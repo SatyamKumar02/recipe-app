@@ -1,0 +1,164 @@
+from flask import Blueprint, render_template, redirect, url_for, flash, request
+from flask_login import login_user, logout_user, login_required
+from app.models import User
+from app.forms import SignupForm, LoginForm
+from app import db, login_manager
+from flask_login import current_user
+from app.models import Review, Recipe
+from app.forms import RecipeForm
+from bson.objectid import ObjectId
+from app.routes import auth  # if you used Blueprint
+
+auth = Blueprint('auth', __name__)
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.get_by_id(db, user_id)
+
+@auth.route('/signup', methods=['GET', 'POST'])
+def signup():
+    form = SignupForm()
+    if form.validate_on_submit():
+        if User.get_by_email(db, form.email.data):
+            flash('Email already registered.', 'danger')
+            return redirect(url_for('auth.signup'))
+        user = User.create(db, form.username.data, form.email.data, form.password.data)
+        login_user(user)
+        flash('Account created and logged in!', 'success')
+        return redirect(url_for('main.dashboard'))
+    return render_template('signup.html', form=form)
+
+@auth.route('/login', methods=['GET', 'POST'])
+def login():
+    form = LoginForm()
+    if form.validate_on_submit():
+        user = User.get_by_email(db, form.email.data)
+        if user and user.check_password(form.password.data):
+            login_user(user)
+            flash('Logged in successfully!', 'success')
+            return redirect(url_for('main.dashboard'))
+        flash('Invalid credentials.', 'danger')
+    return render_template('login.html', form=form)
+
+@auth.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    flash('Logged out.', 'info')
+    return redirect(url_for('auth.login'))
+
+@auth.route('/recipes')
+def view_recipes():
+    recipes = Recipe.get_all(db)
+    return render_template('recipes.html', recipes=recipes)
+
+
+@auth.route('/recipe/<recipe_id>', methods=['GET', 'POST'])
+def recipe_detail(recipe_id):
+    recipe = Recipe.get_by_id(db, recipe_id)
+    if not recipe:
+        flash('Recipe not found.', 'danger')
+        return redirect(url_for('auth.view_recipes'))
+
+    form = ReviewForm()
+    if form.validate_on_submit() and current_user.is_authenticated:
+        review_data = {
+            'recipe_id': ObjectId(recipe_id),
+            'user_id': ObjectId(current_user.id),
+            'comment': form.comment.data,
+            'rating': form.rating.data
+        }
+        Review.add_review(db, review_data)
+        flash('Review submitted!', 'success')
+        return redirect(url_for('auth.recipe_detail', recipe_id=recipe_id))
+
+    reviews = Review.get_reviews_for_recipe(db, recipe_id)
+    average_rating = Review.get_average_rating(db, recipe_id)
+
+    return render_template('recipe_detail.html', recipe=recipe, form=form, reviews=reviews, avg_rating=average_rating)
+
+@auth.route('/add-recipe', methods=['GET', 'POST'])
+@login_required
+def add_recipe():
+    form = RecipeForm()
+    if form.validate_on_submit():
+        data = {
+            'title': form.title.data,
+            'description': form.description.data,
+            'ingredients': form.ingredients.data.strip().splitlines(),
+            'steps': form.steps.data.strip().splitlines(),
+            'image_url': form.image_url.data.strip() or None,
+            'tags': [tag.strip() for tag in form.tags.data.split(',')],
+            'author_id': ObjectId(current_user.id)
+        }
+        Recipe.create(db, data)
+        flash('Recipe added!', 'success')
+        return redirect(url_for('auth.view_recipes'))
+    return render_template('add_edit_recipe.html', form=form, edit=False)
+
+@auth.route('/edit-recipe/<recipe_id>', methods=['GET', 'POST'])
+@login_required
+def edit_recipe(recipe_id):
+    recipe = Recipe.get_by_id(db, recipe_id)
+    if not recipe or recipe.author_id != current_user.id:
+        flash('Unauthorized or not found.', 'danger')
+        return redirect(url_for('auth.view_recipes'))
+
+    form = RecipeForm(obj=recipe)
+    if request.method == 'GET':
+        form.ingredients.data = "\n".join(recipe.ingredients)
+        form.steps.data = "\n".join(recipe.steps)
+        form.tags.data = ", ".join(recipe.tags)
+
+    if form.validate_on_submit():
+        data = {
+            'title': form.title.data,
+            'description': form.description.data,
+            'ingredients': form.ingredients.data.strip().splitlines(),
+            'steps': form.steps.data.strip().splitlines(),
+            'image_url': form.image_url.data.strip() or None,
+            'tags': [tag.strip() for tag in form.tags.data.split(',')],
+        }
+        Recipe.update(db, recipe_id, data)
+        flash('Recipe updated!', 'success')
+        return redirect(url_for('auth.recipe_detail', recipe_id=recipe_id))
+
+    return render_template('add_edit_recipe.html', form=form, edit=True)
+
+@auth.route('/delete-recipe/<recipe_id>', methods=['POST'])
+@login_required
+def delete_recipe(recipe_id):
+    recipe = Recipe.get_by_id(db, recipe_id)
+    if recipe and recipe.author_id == current_user.id:
+        Recipe.delete(db, recipe_id)
+        flash('Recipe deleted.', 'info')
+    else:
+        flash('Unauthorized or not found.', 'danger')
+    return redirect(url_for('auth.view_recipes'))
+
+
+views = Blueprint('views', __name__)
+
+# Toggle save/unsave recipe
+@views.route("/save/<recipe_id>")
+@login_required
+def toggle_save(recipe_id):
+    user = current_user
+    recipe_oid = ObjectId(recipe_id)
+
+    if recipe_oid in user.saved_recipes:
+        user.saved_recipes.remove(recipe_oid)
+        flash("Recipe removed from saved list.", "info")
+    else:
+        user.saved_recipes.append(recipe_oid)
+        flash("Recipe saved!", "success")
+
+    user.save_to_db(db)
+    return redirect(request.referrer or url_for("views.view_all_recipes"))
+
+# Show all saved recipes
+@views.route("/saved-recipes")
+@login_required
+def saved_recipes():
+    saved = db.recipes.find({"_id": {"$in": current_user.saved_recipes}})
+    return render_template("saved_recipes.html", recipes=saved)
